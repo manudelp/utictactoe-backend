@@ -57,12 +57,13 @@ def handle_exception(e):
     return jsonify(response), 500
 
 # Inicializar Socket.IO con la aplicación Flask
-# For Python 3.13 compatibility, we're not using monkey patching
-socketio.init_app(app, cors_allowed_origins="*")
+# Set async_mode to threading for Python 3.13 compatibility
+socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
 
 # Iniciar la aplicación Flask
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    # Use Socket.IO's built-in server without eventlet's monkey patching
+    print(f"Starting server on port {port} with threading mode")
+    # Use allow_unsafe_werkzeug=True for development environments
     socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
 

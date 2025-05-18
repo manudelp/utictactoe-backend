@@ -8,7 +8,7 @@ from . import online_routes, lobbies, socketio
 # Define a Socket.IO namespace for online gameplay
 class OnlineNamespace(Namespace):
     def on_connect(self):
-        print("Client connected to /online namespace")
+        print(f"Client connected to /online namespace: {request.sid}")
 
     def on_disconnect(self):
         print(f"Client {request.sid} disconnected from /online namespace")
@@ -25,23 +25,36 @@ class OnlineNamespace(Namespace):
                 break
 
     def on_createLobby(self, data):
+        print(f"Creating lobby with data: {data}")
         code = data['code']
         if code not in lobbies:
             lobbies[code] = {'players': [request.sid]}
             join_room(code)
             emit('lobbyCreated', {'code': code})
             print(f"Lobby {code} created by player: {request.sid}")
+            print(f"Current lobbies: {lobbies}")
         else:
             emit('error', {'message': 'Lobby code already exists'})
 
     def on_joinLobby(self, data):
+        print(f"Player {request.sid} attempting to join lobby with data: {data}")
         code = data['code']
-        if code in lobbies and len(lobbies[code]['players']) == 1:
+        
+        if code not in lobbies:
+            print(f"Lobby {code} does not exist. Available lobbies: {list(lobbies.keys())}")
+            emit('error', {'message': 'Lobby does not exist'})
+            return
+            
+        if len(lobbies[code]['players']) == 1:
             lobbies[code]['players'].append(request.sid)
             join_room(code)
 
             players = lobbies[code]['players']
             player1_sid, player2_sid = players[0], players[1]
+            
+            print(f"Starting game in lobby {code}")
+            print(f"Player 1 SID: {player1_sid}")
+            print(f"Player 2 SID: {player2_sid}")
 
             # Assign player1 -> X, player2 -> O
             emit('startGame', {'yourLetter': 'X', 'opponentLetter': 'O', 'yourTurn': True}, room=player1_sid)
@@ -49,10 +62,11 @@ class OnlineNamespace(Namespace):
 
             print(f"Player {request.sid} joined lobby {code}")
         else:
-            print(f"Lobby code is {code}, while lobbies are {lobbies}")
-            print(f"Amount of players in lobby is {len(lobbies[code]['players']) if code in lobbies else 'N/A'}")
+            print(f"Lobby {code} is full or empty. Players: {len(lobbies[code]['players']) if code in lobbies else 'N/A'}")
+            emit('error', {'message': 'Lobby is full or empty'})
             
     def on_leaveLobby(self, data):
+        print(f"Player {request.sid} leaving lobby with data: {data}")
         code = data.get('code')
         if not code or code not in lobbies:
             return
@@ -93,3 +107,11 @@ class OnlineNamespace(Namespace):
 
 # Register the namespace
 socketio.on_namespace(OnlineNamespace('/online'))
+
+# Add a debug route
+@online_routes.route('/debug-lobbies', methods=['GET'])
+def debug_lobbies():
+    return jsonify({
+        'lobbies': {code: {'players': players['players']} for code, players in lobbies.items()},
+        'count': len(lobbies)
+    })
