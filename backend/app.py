@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
@@ -57,7 +60,7 @@ def handle_exception(e):
     return jsonify(response), 500
 
 # Inicializar Socket.IO con la aplicación Flask
-socketio.init_app(app)
+socketio.init_app(app, cors_allowed_origins="*", async_mode="eventlet")
 
 # Iniciar la aplicación Flask
 if __name__ == '__main__':
