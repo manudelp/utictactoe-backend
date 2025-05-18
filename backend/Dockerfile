@@ -1,5 +1,4 @@
-FROM python:alpine
-
+FROM python:3.11-alpine
 WORKDIR /app
 
 COPY requirements.txt .
@@ -13,4 +12,5 @@ ENV FLASK_APP=app.py
 ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_ENV=production
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+# Run with python directly
+CMD ["python", "app.py"]

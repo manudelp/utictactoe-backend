@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
@@ -60,9 +57,12 @@ def handle_exception(e):
     return jsonify(response), 500
 
 # Inicializar Socket.IO con la aplicación Flask
-socketio.init_app(app, cors_allowed_origins="*", async_mode="eventlet")
+# For Python 3.13 compatibility, we're not using monkey patching
+socketio.init_app(app, cors_allowed_origins="*")
 
 # Iniciar la aplicación Flask
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    # Use Socket.IO's built-in server without eventlet's monkey patching
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
 
