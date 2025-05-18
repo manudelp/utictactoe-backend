@@ -3,7 +3,7 @@ import sys
 import uuid
 from flask import jsonify, request
 from flask_socketio import Namespace, emit, join_room
-from . import lobbies, socketio
+from . import online_routes, lobbies, socketio
 
 # Define a Socket.IO namespace for online gameplay
 class OnlineNamespace(Namespace):
