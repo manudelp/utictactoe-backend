@@ -51,8 +51,8 @@ class JardiShowAgent:
         self.minimax_plays = 0
         
         # Minimax Parameters
-        self.depth_local = 5 # when btp is not None
-        self.depth_global = 4 # when btp is None
+        self.depth_local = 8 # when btp is not None
+        self.depth_global = 7 # when btp is None
         self.time_limit = 10 # in seconds
         
         # Class Sets
