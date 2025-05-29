@@ -11,8 +11,13 @@ from api.bots import bot_routes
 from api.auth import auth_routes
 from api.online import online_routes
 from socketio_instance import socketio
+from database import test_connection, init_database
 
 load_dotenv()
+
+# Test database connection and initialize database at startup
+test_connection()
+init_database()
 
 app = Flask(__name__)
 app.config.from_object(Config)  
