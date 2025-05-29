@@ -22,14 +22,19 @@ class OnlineNamespace(Namespace):
 
     def on_disconnect(self):
         ip = get_client_ip()
+        sid = request.sid
         print(f"Client {ip} disconnected from /online namespace")
 
-        # Find any lobbies this IP is in
+        # Remove from matchmaking queue
+        global matchmaking_queue
+        matchmaking_queue = [p for p in matchmaking_queue if p['sid'] != sid]
+
+        # Remove from lobbies if applicable
         for code, lobby in list(lobbies.items()):
-            if lobby['ip'] == ip:
+            if sid in lobby['players']:
                 emit('opponentDisconnected', {}, room=code, include_self=False)
                 del lobbies[code]
-                print(f"Lobby {code} removed because IP {ip} disconnected")
+                print(f"Lobby {code} removed because SID {sid} disconnected")
                 break
 
     def on_createLobby(self, data):
