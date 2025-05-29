@@ -1,109 +1,151 @@
-import os
-import sys
-import uuid
+import random
 from flask import jsonify, request
 from flask_socketio import Namespace, emit, join_room
 from . import online_routes, lobbies, socketio
 
+matchmaking_queue = []
+
+# Helper to get real IP address, accounting for proxies
+def get_client_ip():
+    return request.headers.get('X-Forwarded-For', request.remote_addr)
+
+def generate_lobby_code():
+    import random, string
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+
 # Define a Socket.IO namespace for online gameplay
 class OnlineNamespace(Namespace):
+    
     def on_connect(self):
-        print(f"Client connected to /online namespace: {request.sid}")
+        ip = get_client_ip()
+        print(f"Client connected to /online namespace: {ip}")
 
     def on_disconnect(self):
-        print(f"Client {request.sid} disconnected from /online namespace")
-        
-        # Find any lobbies this player is in
+        ip = get_client_ip()
+        print(f"Client {ip} disconnected from /online namespace")
+
+        # Find any lobbies this IP is in
         for code, lobby in list(lobbies.items()):
-            if request.sid in lobby['players']:
-                # Notify other players in the lobby
+            if lobby['ip'] == ip:
                 emit('opponentDisconnected', {}, room=code, include_self=False)
-                
-                # Remove the lobby
                 del lobbies[code]
-                print(f"Lobby {code} removed because player {request.sid} disconnected")
+                print(f"Lobby {code} removed because IP {ip} disconnected")
                 break
 
     def on_createLobby(self, data):
-        print(f"Creating lobby with data: {data}")
+        ip = get_client_ip()
+        print(f"Creating lobby from IP {ip} with data: {data}")
         code = data['code']
+
+        for existing in lobbies.values():
+            if existing['ip'] == ip:
+                emit('error', {'message': 'You already have a lobby'})
+                return
+
         if code not in lobbies:
-            lobbies[code] = {'players': [request.sid]}
+            lobbies[code] = {'players': [request.sid], 'ip': ip}
             join_room(code)
             emit('lobbyCreated', {'code': code})
-            print(f"Lobby {code} created by player: {request.sid}")
+            print(f"Lobby {code} created by IP: {ip}")
             print(f"Current lobbies: {lobbies}")
         else:
             emit('error', {'message': 'Lobby code already exists'})
 
     def on_joinLobby(self, data):
-        print(f"Player {request.sid} attempting to join lobby with data: {data}")
+        ip = get_client_ip()
         code = data['code']
-        
+        print(f"IP {ip} attempting to join lobby {code} with data: {data}")
+
         if code not in lobbies:
-            print(f"Lobby {code} does not exist. Available lobbies: {list(lobbies.keys())}")
+            print(f"Lobby {code} does not exist")
             emit('error', {'message': 'Lobby does not exist'})
             return
-            
+
         if len(lobbies[code]['players']) == 1:
             lobbies[code]['players'].append(request.sid)
             join_room(code)
 
             players = lobbies[code]['players']
             player1_sid, player2_sid = players[0], players[1]
-            
-            print(f"Starting game in lobby {code}")
-            print(f"Player 1 SID: {player1_sid}")
-            print(f"Player 2 SID: {player2_sid}")
 
-            # Assign player1 -> X, player2 -> O
             emit('startGame', {'yourLetter': 'X', 'opponentLetter': 'O', 'yourTurn': True}, room=player1_sid)
             emit('startGame', {'yourLetter': 'O', 'opponentLetter': 'X', 'yourTurn': False}, room=player2_sid)
 
-            print(f"Player {request.sid} joined lobby {code}")
+            print(f"IP {ip} joined lobby {code}")
         else:
-            print(f"Lobby {code} is full or empty. Players: {len(lobbies[code]['players']) if code in lobbies else 'N/A'}")
             emit('error', {'message': 'Lobby is full or empty'})
-            
+
     def on_leaveLobby(self, data):
-        print(f"Player {request.sid} leaving lobby with data: {data}")
+        ip = get_client_ip()
         code = data.get('code')
+        print(f"IP {ip} leaving lobby {code}")
+
         if not code or code not in lobbies:
             return
-        
-        # Find this player's SID
-        player_sid = request.sid
-        
-        # Check if player is in this lobby
-        if code in lobbies and player_sid in lobbies[code]['players']:
-            # Notify other players in the lobby that this player left
+
+        if lobbies[code]['ip'] == ip or request.sid in lobbies[code]['players']:
             for sid in lobbies[code]['players']:
-                if sid != player_sid:
-                    emit('opponentLeft', {
-                        'message': 'Your opponent has left the game'
-                    }, room=sid)
-            
-            # Remove the lobby
+                if sid != request.sid:
+                    emit('opponentLeft', {'message': 'Your opponent has left the game'}, room=sid)
+
             del lobbies[code]
-            print(f"Lobby {code} removed because player {player_sid} left")
+            print(f"Lobby {code} removed because IP {ip} left")
 
     def on_makeMove(self, data):
         code = data['code']
         move = data['move']
         print(f"Move made in lobby {code}: {move}")
         emit('opponentMove', move, room=code, include_self=False)
-        
+
     def on_gameOver(self, data):
         code = data['code']
         winner = data['winner']
-        winningLine = data.get('winningLine')  # This might be optional
-        
+        winningLine = data.get('winningLine')
+
         print(f"Game over in lobby {code}. Winner: {winner}")
-        # Broadcast to everyone in the room except sender
         emit('gameOver', {
             'winner': winner,
             'winningLine': winningLine
         }, room=code, include_self=False)
+
+    def on_matchmakingSearch(self):
+        sid = request.sid
+        ip = get_client_ip()
+        print(f"IP {ip} searching for match")
+
+        for entry in matchmaking_queue:
+            if entry['ip'] == ip:
+                emit('error', {'message': 'Already in queue'})
+                return
+
+        if not matchmaking_queue:
+            matchmaking_queue.append({'sid': sid, 'ip': ip})
+            emit('searching')
+            return
+
+        opponent = matchmaking_queue.pop(0)
+        opponent_sid = opponent['sid']
+        opponent_ip = opponent['ip']
+
+        code = generate_lobby_code()
+        lobbies[code] = {'players': [opponent_sid, sid], 'ip': 'matchmaking'}
+
+        join_room(code, sid=sid)
+        join_room(code, sid=opponent_sid)
+
+        if random.choice([True, False]):
+            first_sid, second_sid = sid, opponent_sid
+        else:
+            first_sid, second_sid = opponent_sid, sid
+
+        emit('startGame', {'yourLetter': 'X', 'opponentLetter': 'O', 'yourTurn': True}, room=first_sid)
+        emit('startGame', {'yourLetter': 'O', 'opponentLetter': 'X', 'yourTurn': False}, room=second_sid)
+
+
+        emit('matchFound', {'code': code}, room=sid)
+        emit('matchFound', {'code': code}, room=opponent_sid)
+
+        print(f"Matchmaking: {ip} vs {opponent_ip} in lobby {code}")
 
 # Register the namespace
 socketio.on_namespace(OnlineNamespace('/online'))
@@ -112,6 +154,6 @@ socketio.on_namespace(OnlineNamespace('/online'))
 @online_routes.route('/debug-lobbies', methods=['GET'])
 def debug_lobbies():
     return jsonify({
-        'lobbies': {code: {'players': players['players']} for code, players in lobbies.items()},
+        'lobbies': {code: {'players': players['players'], 'ip': players['ip']} for code, players in lobbies.items()},
         'count': len(lobbies)
     })
