@@ -6,7 +6,7 @@ from database import register_user, login_user, verify_token as db_verify_token
 @auth_routes.route('/register', methods=['POST'])
 def register():
     """User registration using Supabase Auth."""
-    data = request.json
+    data = request.json or {}
 
     # Continue with registration logic
     if not data.get("name") or not data.get("email") or not data.get("password"):
@@ -24,7 +24,7 @@ def register():
 @auth_routes.route('/login', methods=['POST'])
 def login():
     """User login using Supabase Auth."""
-    data = request.json
+    data = request.json or {}
 
     # Continue with login logic
     if not data.get("email") or not data.get("password"):

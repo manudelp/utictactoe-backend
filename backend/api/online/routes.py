@@ -3,6 +3,7 @@ from flask import jsonify, request
 from flask_socketio import Namespace, emit, join_room
 from . import online_routes, lobbies, socketio
 
+connected_users = 0
 matchmaking_queue = []
 
 # Helper to get real IP address, accounting for proxies
@@ -17,19 +18,22 @@ def generate_lobby_code():
 class OnlineNamespace(Namespace):
     
     def on_connect(self):
+        global connected_users
+        connected_users += 1
         ip = get_client_ip()
-        print(f"Client connected to /online namespace: {ip}")
+        emit('connectedUsers', connected_users, broadcast=True, namespace='/online')
+        print(f"Client connected to /online namespace: {ip} (Total: {connected_users})")
 
     def on_disconnect(self):
+        global connected_users, matchmaking_queue
+        connected_users = max(connected_users - 1, 0)
         ip = get_client_ip()
         sid = request.sid
-        print(f"Client {ip} disconnected from /online namespace")
+        emit('connectedUsers', connected_users, broadcast=True, namespace='/online')
+        print(f"Client {ip} disconnected from /online namespace (Total: {connected_users})")
 
-        # Remove from matchmaking queue
-        global matchmaking_queue
         matchmaking_queue = [p for p in matchmaking_queue if p['sid'] != sid]
 
-        # Remove from lobbies if applicable
         for code, lobby in list(lobbies.items()):
             if sid in lobby['players']:
                 emit('opponentDisconnected', {}, room=code, include_self=False)
