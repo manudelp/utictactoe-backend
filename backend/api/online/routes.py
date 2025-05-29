@@ -150,9 +150,9 @@ class OnlineNamespace(Namespace):
         emit('startGame', {'yourLetter': 'X', 'opponentLetter': 'O', 'yourTurn': True}, room=first_sid)
         emit('startGame', {'yourLetter': 'O', 'opponentLetter': 'X', 'yourTurn': False}, room=second_sid)
 
-
-        emit('matchFound', {'code': code}, room=sid)
-        emit('matchFound', {'code': code}, room=opponent_sid)
+        # Update matchFound events to include the player's letter
+        emit('matchFound', {'code': code, 'yourLetter': 'X'}, room=first_sid)
+        emit('matchFound', {'code': code, 'yourLetter': 'O'}, room=second_sid)
 
         print(f"Matchmaking: {ip} vs {opponent_ip} in lobby {code}")
 
