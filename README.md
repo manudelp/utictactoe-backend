@@ -37,7 +37,8 @@ Ultimate Tic-Tac-Toe is a complex variant of the classic Tic-Tac-Toe game. The b
    ```
 
 4. Set up environment variables:
-   ```bash
+   ```
+   bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
