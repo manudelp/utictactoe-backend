@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from config import Config
 from api.bots import bot_routes
 from api.auth import auth_routes
 from api.online import online_routes
@@ -18,6 +17,12 @@ load_dotenv()
 # Test database connection and initialize database at startup
 test_connection()
 init_database()
+
+class Config:
+    """Base configuration."""
+    DEBUG = os.getenv("DEBUG", True)
+    HOST = os.getenv("HOST", "127.0.0.1")
+    PORT = os.getenv("PORT", 5000)
 
 app = Flask(__name__)
 app.config.from_object(Config)  
