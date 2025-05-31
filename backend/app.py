@@ -45,6 +45,21 @@ CORS(app,
          "max_age": 86400  # Cache preflight response for 24 hours
      }}
 )
+
+# Add this after_request handler to ensure OPTIONS requests are handled correctly
+@app.after_request
+def after_request(response):
+    # Handle OPTIONS requests explicitly
+    if request.method == 'OPTIONS':
+        headers = response.headers
+        headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        headers['Access-Control-Allow-Credentials'] = 'true'
+        headers['Access-Control-Max-Age'] = '86400'
+        # Ensure OPTIONS requests return 200 OK
+        return response
+    return response
 ### END CORS ###
 
 
