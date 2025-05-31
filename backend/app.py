@@ -36,7 +36,15 @@ allowed_origins = [
     "https://utictactoe.vercel.app"
 ]
 
-CORS(app, resources={r"/*": {"origins": allowed_origins}})
+CORS(app, 
+     resources={r"/*": {
+         "origins": allowed_origins,
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+         "supports_credentials": True,
+         "max_age": 86400  # Cache preflight response for 24 hours
+     }}
+)
 ### END CORS ###
 
 
