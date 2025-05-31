@@ -35,19 +35,14 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 
 
 ### CORS ###
-def get_cors_origin():
-    origin = request.headers.get('Origin')
-    allowed_origins = [
-        "http://localhost:3000",
-        "https://www.utictactoe.online",
-        "https://utictactoe.online",
-        "https://utictactoe.vercel.app"
-    ]
-    if origin in allowed_origins:
-        return origin
-    return None
+allowed_origins = [
+    "http://localhost:3000",
+    "https://www.utictactoe.online",
+    "https://utictactoe.online",
+    "https://utictactoe.vercel.app"
+]
 
-CORS(app, resources={r"/*": {"origins": get_cors_origin}})
+CORS(app, resources={r"/*": {"origins": allowed_origins}})
 ### END CORS ###
 
 
