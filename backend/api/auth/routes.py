@@ -40,8 +40,11 @@ def validate_recaptcha(token):
     )
     return response.json().get("success", False)
 
-@auth_routes.route('/register', methods=['POST'])
+@auth_routes.route('/register', methods=['POST', 'OPTIONS'])
 def register():
+    if request.method == 'OPTIONS':
+        return '', 204
+
     data = request.json
     if not validate_recaptcha(data.get("recaptcha")):
         return jsonify({"message": "Invalid reCAPTCHA"}), 400
@@ -69,8 +72,11 @@ def register():
 
     return jsonify({"message": "User registered successfully!"}), 201
 
-@auth_routes.route('/login', methods=['POST'])
+@auth_routes.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return '', 204
+
     data = request.json
     if not validate_recaptcha(data.get("recaptcha")):
         return jsonify({"message": "Invalid reCAPTCHA"}), 400
@@ -89,8 +95,11 @@ def login():
 
     return jsonify({"message": "Invalid credentials."}), 401
 
-@auth_routes.route('/verify-token', methods=['POST'])
+@auth_routes.route('/verify-token', methods=['POST', 'OPTIONS'])
 def verify_token():
+    if request.method == 'OPTIONS':
+        return '', 204
+
     token = request.headers.get("Authorization")
     if not token:
         return jsonify({"message": "Token is missing."}), 401
@@ -102,8 +111,11 @@ def verify_token():
     except jwt.InvalidTokenError:
         return jsonify({"message": "Invalid token."}), 401
 
-@auth_routes.route('/verify-recaptcha', methods=['POST'])
+@auth_routes.route('/verify-recaptcha', methods=['POST', 'OPTIONS'])
 def verify_recaptcha():
+    if request.method == 'OPTIONS':
+        return '', 204
+
     data = request.json
     if not validate_recaptcha(data.get("recaptcha")):
         return jsonify({"success": False, "message": "Invalid reCAPTCHA"}), 400
