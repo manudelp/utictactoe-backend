@@ -38,6 +38,10 @@ coverage.xml
 
 # Environments
 .env
+.env.*
+backend/.env
+backend/.env.*
+backend/.env.local
 .venv
 env/
 venv/

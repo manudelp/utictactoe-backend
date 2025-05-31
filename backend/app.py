@@ -12,13 +12,7 @@ from api.bots import bot_routes
 from api.auth import auth_routes
 from api.online import online_routes
 from socketio_instance import socketio
-from database import test_connection, init_database
 
-
-### DATABASE SETUP ###
-test_connection()
-init_database()
-### END DATABASE SETUP ###
 
 ### CONFIGURATION ###
 load_dotenv()
