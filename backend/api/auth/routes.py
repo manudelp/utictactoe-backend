@@ -3,24 +3,41 @@ import json
 import bcrypt
 import jwt
 import requests
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from datetime import datetime, timedelta
+from pathlib import Path
 
-auth_routes = Blueprint('auth', __name__)
+from . import auth_routes  # This imports the blueprint from __init__.py
 
-DATA_FILE = 'users.json'
+BASE_DIR = Path(__file__).parent.parent.parent  # Gets the backend directory
+DATA_FILE = os.path.join(BASE_DIR, 'users.json')
+
 SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY')
 
 def load_users():
-    if not os.path.exists(DATA_FILE):
+    try:
+        if not os.path.exists(DATA_FILE):
+            print(f"Creating new users file at {DATA_FILE}")
+            # Create the file with an empty array
+            with open(DATA_FILE, 'w') as f:
+                json.dump([], f)
+            return []
+        with open(DATA_FILE, 'r') as f:
+            users = json.load(f)
+            print(f"Loaded {len(users)} users from {DATA_FILE}")
+            return users
+    except Exception as e:
+        print(f"Error loading users: {e}")
         return []
-    with open(DATA_FILE, 'r') as f:
-        return json.load(f)
 
 def save_users(users):
-    with open(DATA_FILE, 'w') as f:
-        json.dump(users, f)
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(users, f)
+            print(f"Saved {len(users)} users to {DATA_FILE}")
+    except Exception as e:
+        print(f"Error saving users: {e}")
 
 def generate_token(user):
     payload = {
@@ -33,23 +50,67 @@ def generate_token(user):
 
 def validate_recaptcha(token):
     if not token:
+        print("No reCAPTCHA token provided")
         return False
-    response = requests.post(
-        "https://www.google.com/recaptcha/api/siteverify",
-        data={"secret": RECAPTCHA_SECRET_KEY, "response": token}
-    )
-    return response.json().get("success", False)
+    
+    try:
+        print(f"Verifying reCAPTCHA token (length: {len(token)})")
+        
+        # Check if we have a secret key
+        if not RECAPTCHA_SECRET_KEY:
+            print("ERROR: Missing RECAPTCHA_SECRET_KEY in environment variables")
+            return False
+            
+        url = "https://www.google.com/recaptcha/api/siteverify"
+        payload = {
+            "secret": RECAPTCHA_SECRET_KEY,
+            "response": token
+        }
+        print(f"Using secret key: {RECAPTCHA_SECRET_KEY[:5]}...{RECAPTCHA_SECRET_KEY[-5:] if len(RECAPTCHA_SECRET_KEY) > 10 else ''}")
+        
+        response = requests.post(url, data=payload)
+        print(f"reCAPTCHA response status code: {response.status_code}")
+        
+        # Ensure we have a valid response before trying to parse JSON
+        if response.status_code != 200:
+            print(f"reCAPTCHA API returned error status: {response.status_code}")
+            print(f"Response content: {response.text}")
+            return False
+            
+        # Parse the response safely
+        try:
+            result = response.json()
+            print(f"reCAPTCHA verification response: {result}")
+            return result.get("success", False) is True
+        except Exception as e:
+            print(f"Error parsing reCAPTCHA response: {e}")
+            print(f"Response content: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"reCAPTCHA verification error: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return False
 
-@auth_routes.route('/register', methods=['POST', 'OPTIONS'])
+@auth_routes.route('/register', methods=['POST'])
 def register():
     if request.method == 'OPTIONS':
         return '', 204
 
     data = request.json
-    if not validate_recaptcha(data.get("recaptcha")):
-        return jsonify({"message": "Invalid reCAPTCHA"}), 400
+    print(f"Registration attempt with data keys: {list(data.keys())}")
+    
+    # Check if recaptcha is present
+    recaptcha_token = data.get("recaptcha")
+    if not recaptcha_token:
+        return jsonify({"message": "reCAPTCHA token is required"}), 400
+    
+    if not validate_recaptcha(recaptcha_token):
+        return jsonify({"message": "Invalid reCAPTCHA. Please try again."}), 400
 
-    name = data.get("name")
+    # Accept either "name" or "username" for compatibility
+    name = data.get("name") or data.get("username")
     email = data.get("email")
     password = data.get("password")
 
@@ -77,23 +138,45 @@ def login():
     if request.method == 'OPTIONS':
         return '', 204
 
-    data = request.json
-    if not validate_recaptcha(data.get("recaptcha")):
-        return jsonify({"message": "Invalid reCAPTCHA"}), 400
+    try:
+        data = request.json
+        print(f"Login attempt for email: {data.get('email')}")
+        
+        # Check recaptcha
+        recaptcha_token = data.get("recaptcha")
+        if not recaptcha_token:
+            print("No recaptcha token provided")
+            return jsonify({"message": "reCAPTCHA verification required"}), 400
+            
+        if not validate_recaptcha(recaptcha_token):
+            print("Invalid recaptcha")
+            return jsonify({"message": "Invalid reCAPTCHA"}), 400
 
-    email = data.get("email")
-    password = data.get("password")
+        email = data.get("email")
+        password = data.get("password")
 
-    if not all([email, password]):
-        return jsonify({"message": "Missing email or password."}), 400
+        if not all([email, password]):
+            return jsonify({"message": "Missing email or password"}), 400
 
-    users = load_users()
-    for user in users:
-        if user["email"] == email and bcrypt.checkpw(password.encode(), user["password"].encode()):
-            token = generate_token(user)
-            return jsonify({"access_token": token, "name": user["name"]}), 200
-
-    return jsonify({"message": "Invalid credentials."}), 401
+        users = load_users()
+        for user in users:
+            if user["email"] == email:
+                try:
+                    if bcrypt.checkpw(password.encode(), user["password"].encode()):
+                        token = generate_token(user)
+                        print(f"Login successful for {email}")
+                        return jsonify({"access_token": token, "name": user["name"]}), 200
+                except Exception as e:
+                    print(f"Password verification error: {e}")
+                    return jsonify({"message": "Authentication error"}), 500
+                    
+                return jsonify({"message": "Invalid password"}), 401
+                
+        return jsonify({"message": "User not found"}), 401
+        
+    except Exception as e:
+        print(f"Login error: {e}")
+        return jsonify({"message": "An error occurred during login"}), 500
 
 @auth_routes.route('/verify-token', methods=['POST', 'OPTIONS'])
 def verify_token():

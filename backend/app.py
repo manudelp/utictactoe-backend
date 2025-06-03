@@ -15,7 +15,16 @@ from socketio_instance import socketio
 
 
 ### CONFIGURATION ###
+# Load environment variables
 load_dotenv()
+
+# Verify critical env vars are loaded
+recaptcha_key = os.getenv('RECAPTCHA_SECRET_KEY')
+jwt_key = os.getenv('JWT_SECRET_KEY')
+
+print(f"Environment loaded - RECAPTCHA_SECRET_KEY: {'✓ Present' if recaptcha_key else '❌ MISSING'}")
+print(f"Environment loaded - JWT_SECRET_KEY: {'✓ Present' if jwt_key else '❌ MISSING'}")
+
 class Config:
     """Base configuration."""
     DEBUG = os.getenv("DEBUG", True)
@@ -24,7 +33,7 @@ class Config:
 
 app = Flask(__name__)
 app.config.from_object(Config)  
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+app.config['JWT_SECRET_KEY'] = jwt_key
 ### END CONFIGURATION ###
 
 
@@ -46,19 +55,28 @@ CORS(app,
      }}
 )
 
-# Add this after_request handler to ensure OPTIONS requests are handled correctly
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    response = app.make_default_options_response()
+    headers = response.headers
+
+    headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+    headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+    headers['Access-Control-Allow-Credentials'] = 'true'
+    headers['Access-Control-Max-Age'] = '86400'
+
+    return response
+
+
 @app.after_request
 def after_request(response):
-    # Handle OPTIONS requests explicitly
-    if request.method == 'OPTIONS':
-        headers = response.headers
-        headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
-        headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-        headers['Access-Control-Allow-Credentials'] = 'true'
-        headers['Access-Control-Max-Age'] = '86400'
-        # Ensure OPTIONS requests return 200 OK
-        return response
+    headers = response.headers
+    headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+    headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+    headers['Access-Control-Allow-Credentials'] = 'true'
+    headers['Access-Control-Max-Age'] = '86400'
     return response
 ### END CORS ###
 
@@ -85,17 +103,6 @@ app.register_blueprint(online_routes)
 def health_check():
     return jsonify(status="healthy"), 200
 #### END ROUTES ###
-
-
-### ERROR HANDLERS ###
-@app.errorhandler(Exception)
-def handle_exception(e):
-    response = {
-        "message": "An unexpected error occurred.",
-        "details": str(e)
-    }
-    return jsonify(response), 500
-#### END ERROR HANDLERS ###
 
 
 ### SOCKET.IO ###
