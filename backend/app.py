@@ -45,15 +45,9 @@ allowed_origins = [
     "https://utictactoe.vercel.app"
 ]
 
-CORS(app, 
-     resources={r"/*": {
-         "origins": allowed_origins,
-         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-         "supports_credentials": True,
-         "max_age": 86400  # Cache preflight response for 24 hours
-     }}
-)
+CORS(app,
+     origins=allowed_origins,
+     supports_credentials=True)
 
 def set_cors_headers(headers):
     """Set CORS headers on a response"""
