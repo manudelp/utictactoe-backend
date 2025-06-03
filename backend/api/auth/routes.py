@@ -111,16 +111,16 @@ def login():
 
     try:
         data = request.json
-        print(f"Login attempt for email: {data.get('email')}")
+        logger.info(f"Login attempt for email: {data.get('email')}")
         
         # Check recaptcha
         recaptcha_token = data.get("recaptcha")
         if not recaptcha_token:
-            print("No recaptcha token provided")
+            logger.warning("No recaptcha token provided")
             return jsonify({"message": "reCAPTCHA verification required"}), 400
             
         if not validate_recaptcha(recaptcha_token):
-            print("Invalid recaptcha")
+            logger.warning("Invalid recaptcha")
             return jsonify({"message": "Invalid reCAPTCHA"}), 400
 
         email = data.get("email")
