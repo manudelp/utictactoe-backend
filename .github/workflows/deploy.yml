@@ -58,6 +58,15 @@ jobs:
           scp -P ${{ secrets.SSH_PORT }} fullchain.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/ssl/
           scp -P ${{ secrets.SSH_PORT }} privkey.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/ssl/
 
+      - name: Create .env file on server
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/utictactoe"
+          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
+            echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" > ~/utictactoe/.env
+            echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> ~/utictactoe/.env
+            echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> ~/utictactoe/.env
+          EOF
+
       - name: Copy docker-compose.yml to server
         run: |
           scp -P ${{ secrets.SSH_PORT }} docker-compose.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/
@@ -68,9 +77,6 @@ jobs:
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-backend:latest
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-nginx:latest
-            docker compose -f ~/utictactoe/docker-compose.yml down || true
-            mkdir -p ~/utictactoe
-            cd ~/utictactoe
-            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            docker compose -f ~/utictactoe/docker-compose.yml up -d
+            docker compose --env-file ~/utictactoe/.env -f ~/utictactoe/docker-compose.yml down || true
+            docker compose --env-file ~/utictactoe/.env -f ~/utictactoe/docker-compose.yml up -d
           EOF
