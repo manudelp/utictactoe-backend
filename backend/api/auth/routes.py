@@ -12,8 +12,11 @@ from . import auth_routes  # This imports the blueprint from __init__.py
 BASE_DIR = Path(__file__).parent.parent.parent  # Gets the backend directory
 DATA_FILE = os.path.join(BASE_DIR, 'users.json')
 
-SECRET_KEY = os.getenv('JWT_SECRET_KEY')
-RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY')
+def get_secret_key():
+    return os.getenv('JWT_SECRET_KEY')
+
+def get_recaptcha_secret_key():
+    return os.getenv('RECAPTCHA_SECRET_KEY')
 
 def load_users():
     try:
@@ -46,52 +49,20 @@ def generate_token(user):
         "email": user["email"],
         "exp": datetime.utcnow() + timedelta(hours=1)
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return jwt.encode(payload, get_secret_key(), algorithm="HS256")
 
 def validate_recaptcha(token):
-    if not token:
-        print("No reCAPTCHA token provided")
+    secret = get_recaptcha_secret_key()
+    if not secret:
+        print("ERROR: Missing RECAPTCHA_SECRET_KEY in environment variables")
         return False
-    
-    try:
-        print(f"Verifying reCAPTCHA token (length: {len(token)})")
-        
-        # Check if we have a secret key
-        if not RECAPTCHA_SECRET_KEY:
-            print("ERROR: Missing RECAPTCHA_SECRET_KEY in environment variables")
-            return False
-            
-        url = "https://www.google.com/recaptcha/api/siteverify"
-        payload = {
-            "secret": RECAPTCHA_SECRET_KEY,
-            "response": token
-        }
-        print(f"Using secret key: {RECAPTCHA_SECRET_KEY[:5]}...{RECAPTCHA_SECRET_KEY[-5:] if len(RECAPTCHA_SECRET_KEY) > 10 else ''}")
-        
-        response = requests.post(url, data=payload)
-        print(f"reCAPTCHA response status code: {response.status_code}")
-        
-        # Ensure we have a valid response before trying to parse JSON
-        if response.status_code != 200:
-            print(f"reCAPTCHA API returned error status: {response.status_code}")
-            print(f"Response content: {response.text}")
-            return False
-            
-        # Parse the response safely
-        try:
-            result = response.json()
-            print(f"reCAPTCHA verification response: {result}")
-            return result.get("success", False) is True
-        except Exception as e:
-            print(f"Error parsing reCAPTCHA response: {e}")
-            print(f"Response content: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"reCAPTCHA verification error: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return False
+
+    response = requests.post(
+        "https://www.google.com/recaptcha/api/siteverify",
+        data={"secret": secret, "response": token}
+    )
+    print("reCAPTCHA response:", response.json())
+    return response.json().get("success", False)
 
 @auth_routes.route('/register', methods=['POST'])
 def register():
@@ -183,11 +154,16 @@ def verify_token():
     if request.method == 'OPTIONS':
         return '', 204
 
-    token = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+            return jsonify({"message": "Invalid Authorization header."}), 401
+
+    token = auth_header.split("Bearer ")[1]
+
     if not token:
         return jsonify({"message": "Token is missing."}), 401
     try:
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        decoded = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
         return jsonify({"valid": True, "data": decoded}), 200
     except jwt.ExpiredSignatureError:
         return jsonify({"message": "Token has expired."}), 401

@@ -22,8 +22,8 @@ load_dotenv()
 recaptcha_key = os.getenv('RECAPTCHA_SECRET_KEY')
 jwt_key = os.getenv('JWT_SECRET_KEY')
 
-print(f"Environment loaded - RECAPTCHA_SECRET_KEY: {'✓ Present' if recaptcha_key else '❌ MISSING'}")
-print(f"Environment loaded - JWT_SECRET_KEY: {'✓ Present' if jwt_key else '❌ MISSING'}")
+print(f"Environment loaded - RECAPTCHA_SECRET_KEY: {'✅ Present' if recaptcha_key else '❌ MISSING'}")
+print(f"Environment loaded - JWT_SECRET_KEY: {'✅ Present' if jwt_key else '❌ MISSING'}")
 
 class Config:
     """Base configuration."""
