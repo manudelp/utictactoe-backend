@@ -55,28 +55,26 @@ CORS(app,
      }}
 )
 
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    response = app.make_default_options_response()
-    headers = response.headers
-
+def set_cors_headers(headers):
+    """Set CORS headers on a response"""
     headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
     headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
     headers['Access-Control-Allow-Credentials'] = 'true'
     headers['Access-Control-Max-Age'] = '86400'
+    return headers
 
+
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    response = app.make_default_options_response()
+    set_cors_headers(response.headers)
     return response
 
 
 @app.after_request
 def after_request(response):
-    headers = response.headers
-    headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
-    headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-    headers['Access-Control-Allow-Credentials'] = 'true'
-    headers['Access-Control-Max-Age'] = '86400'
+    set_cors_headers(response.headers)
     return response
 ### END CORS ###
 
