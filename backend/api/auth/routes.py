@@ -70,7 +70,7 @@ def register():
         return '', 204
 
     data = request.json
-    print(f"Registration attempt with data keys: {list(data.keys())}")
+    logging.info(f"Registration attempt with data keys: {list(data.keys())}")
     
     # Check if recaptcha is present
     recaptcha_token = data.get("recaptcha")
