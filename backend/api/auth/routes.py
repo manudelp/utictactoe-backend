@@ -1,4 +1,5 @@
 import os
+import logging
 import json
 import bcrypt
 import jwt
@@ -6,8 +7,9 @@ import requests
 from flask import request, jsonify
 from datetime import datetime, timedelta
 from pathlib import Path
+from . import auth_routes
 
-from . import auth_routes  # This imports the blueprint from __init__.py
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent.parent.parent  # Gets the backend directory
 DATA_FILE = os.path.join(BASE_DIR, 'users.json')
