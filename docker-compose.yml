@@ -4,6 +4,9 @@ services:
     restart: always
     expose:
       - "5000"
+    environment:
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     networks:
       - utictactoe
 
