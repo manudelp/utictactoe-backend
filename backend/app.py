@@ -22,9 +22,6 @@ load_dotenv()
 recaptcha_key = os.getenv('RECAPTCHA_SECRET_KEY')
 jwt_key = os.getenv('JWT_SECRET_KEY')
 
-app.logger.info(f"Environment loaded - RECAPTCHA_SECRET_KEY: {'✅ Present' if recaptcha_key else '❌ MISSING'}")
-app.logger.info(f"Environment loaded - JWT_SECRET_KEY: {'✅ Present' if jwt_key else '❌ MISSING'}")
-
 class Config:
     """Base configuration."""
     DEBUG = os.getenv("DEBUG", True)
@@ -32,6 +29,8 @@ class Config:
     PORT = os.getenv("PORT", 5000)
 
 app = Flask(__name__)
+app.logger.info(f"Environment loaded - RECAPTCHA_SECRET_KEY: {'✅ Present' if recaptcha_key else '❌ MISSING'}")
+app.logger.info(f"Environment loaded - JWT_SECRET_KEY: {'✅ Present' if jwt_key else '❌ MISSING'}")
 app.config.from_object(Config)  
 app.config['JWT_SECRET_KEY'] = jwt_key
 ### END CONFIGURATION ###
@@ -60,11 +59,10 @@ def set_cors_headers(headers):
 
 
 @app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
+def handle_options(_path):
     response = app.make_default_options_response()
     set_cors_headers(response.headers)
     return response
-
 
 @app.after_request
 def after_request(response):
@@ -77,13 +75,12 @@ def after_request(response):
 jwt = JWTManager(app)
 
 @jwt.unauthorized_loader
-def unauthorized_response(callback):
+def unauthorized_response(_callback):
     return jsonify({"message": "Missing or invalid token."}), 401
 
 @jwt.expired_token_loader
-def expired_token_response(jwt_header, jwt_payload):
+def expired_token_response(_jwt_header, _jwt_payload):
     return jsonify({"message": "Token has expired."}), 401
-### END JWT ###
 
 
 ### ROUTES ###
@@ -98,9 +95,8 @@ def health_check():
 
 
 ### SOCKET.IO ###
-socketio.init_app(app, cors_allowed_origins="*")
+socketio.init_app(app, cors_allowed_origins=allowed_origins)
 ### END SOCKET.IO ###
-
 
 ### STARTUP LOGIC ###
 if __name__ == '__main__':
