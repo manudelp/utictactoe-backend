@@ -65,6 +65,8 @@ jobs:
             echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" > ~/utictactoe/.env
             echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> ~/utictactoe/.env
             echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> ~/utictactoe/.env
+            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> ~/utictactoe/.env
+            echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> ~/utictactoe/.env
           EOF
 
       - name: Copy docker-compose.yml to server
