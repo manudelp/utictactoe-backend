@@ -18,7 +18,4 @@ online_routes = Blueprint('online', __name__)
 # In-memory storage for lobbies
 lobbies = {}
 
-logger.info("Online module initialized with Socket.IO")
-
-# Import routes at the end to avoid circular imports
 from . import routes
