@@ -7,6 +7,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from supabase import create_client
 from dotenv import load_dotenv
 from . import auth_routes
+from recaptcha_utils import validate_recaptcha
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -20,50 +21,6 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 logger.info(f"Environment loaded - SUPABASE_URL: {'✅ Present' if SUPABASE_URL else '❌ MISSING'}")
 logger.info(f"Environment loaded - SUPABASE_SERVICE_KEY: {'✅ Present' if SUPABASE_SERVICE_KEY else '❌ MISSING'}")
-
-def validate_recaptcha(token, remote_ip=None):
-    """Validate reCAPTCHA token with Google"""
-    try:
-        if not RECAPTCHA_SECRET_KEY:
-            logger.warning("reCAPTCHA secret key not configured")
-            return False, "reCAPTCHA not configured"
-
-        logger.info(f"Validating reCAPTCHA token: {token[:20]}...")
-        
-        # Verify token with Google
-        verification_url = 'https://www.google.com/recaptcha/api/siteverify'
-        verification_data = {
-            'secret': RECAPTCHA_SECRET_KEY,
-            'response': token,
-            'remoteip': remote_ip
-        }
-
-        logger.info("Sending verification request to Google...")
-        response = requests.post(verification_url, data=verification_data, timeout=10)
-        result = response.json()
-        
-        logger.info(f"Google reCAPTCHA response: {result}")
-
-        # Check if verification was successful
-        is_valid = result.get('success', False)
-        score = result.get('score', 0)
-        
-        # For reCAPTCHA v3, check score threshold (0.5 is typically good)
-        if is_valid and score >= 0.5:
-            logger.info(f"reCAPTCHA validation successful with score: {score}")
-            return True, None
-        else:
-            logger.warning(f"reCAPTCHA validation failed. Success: {is_valid}, Score: {score}")
-            error_codes = result.get('error-codes', [])
-            return False, f"reCAPTCHA validation failed. Errors: {error_codes}"
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error during reCAPTCHA verification: {e}")
-        return False, f"Network error: {str(e)}"
-    
-    except Exception as e:
-        logger.error(f"Error during reCAPTCHA verification: {e}")
-        return False, f"Verification error: {str(e)}"
 
 @auth_routes.route('/register', methods=['POST', 'OPTIONS'])
 def register():
@@ -261,8 +218,9 @@ def verify_recaptcha():
         return '', 204
 
     data = request.json
-    if not validate_recaptcha(data.get("recaptcha")):
-        return jsonify({"success": False, "message": "Invalid reCAPTCHA"}), 400
+    is_valid, error_message = validate_recaptcha(data.get("recaptcha"), request.remote_addr)
+    if not is_valid:
+        return jsonify({"success": False, "message": error_message}), 400
     return jsonify({"success": True}), 200
 
 @auth_routes.route('/test-connection', methods=['GET', 'OPTIONS'])
