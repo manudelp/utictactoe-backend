@@ -57,13 +57,6 @@ def set_cors_headers(headers):
     headers['Access-Control-Max-Age'] = '86400'
     return headers
 
-
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(_path):
-    response = app.make_default_options_response()
-    set_cors_headers(response.headers)
-    return response
-
 @app.after_request
 def after_request(response):
     set_cors_headers(response.headers)
@@ -84,19 +77,28 @@ def expired_token_response(_jwt_header, _jwt_payload):
 
 
 ### ROUTES ###
-app.register_blueprint(bot_routes)
-app.register_blueprint(auth_routes)
-app.register_blueprint(online_routes)
+app.register_blueprint(bot_routes, url_prefix='/bot')  # Changed from '/bots' to '/bot'
+app.register_blueprint(auth_routes, url_prefix='/auth')
+app.register_blueprint(online_routes, url_prefix='/online')
 
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify(status="healthy"), 200
+
+# Add OPTIONS handler for all routes
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify()
+        set_cors_headers(response.headers)
+        return response
 #### END ROUTES ###
 
 
 ### SOCKET.IO ###
 socketio.init_app(app, cors_allowed_origins=allowed_origins)
 ### END SOCKET.IO ###
+
 
 ### STARTUP LOGIC ###
 if __name__ == '__main__':
