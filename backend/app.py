@@ -77,9 +77,9 @@ def expired_token_response(_jwt_header, _jwt_payload):
 
 
 ### ROUTES ###
-app.register_blueprint(bot_routes, url_prefix='/bot')  # Changed from '/bots' to '/bot'
+app.register_blueprint(bot_routes)
 app.register_blueprint(auth_routes, url_prefix='/auth')
-app.register_blueprint(online_routes, url_prefix='/online')
+app.register_blueprint(online_routes)
 
 @app.route('/health', methods=['GET'])
 def health_check():

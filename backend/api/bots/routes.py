@@ -5,38 +5,29 @@ from colorama import Style, Fore
 from typing import List, Tuple, Dict, Any, Union, Optional
 from flask import jsonify, request
 from . import bot_routes, AGENTS
-import logging
 
-logger = logging.getLogger(__name__)
-
-@bot_routes.route('/get-bot-list', methods=['GET', 'OPTIONS'])
+@bot_routes.route('/get-bot-list', methods=['GET'])
 def get_bot_list():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
     try:
         bot_list = []
-        for agent_id, agent in AGENTS.items():
-            bot_info = {
+        for agent in AGENTS.values():
+            print(f"Processing agent: {agent.name}")  # Debugging
+            bot_list.append({
                 'id': agent.id,
                 'name': agent.name,
                 'icon': agent.icon,
                 'description': agent.description,
                 'difficulty': agent.difficulty
-            }
-            bot_list.append(bot_info)
-        
-        return jsonify(bot_list), 200
+            })
+        return jsonify(bot_list)
     except Exception as e:
-        logger.error(f"Error getting bot list: {e}")
-        return jsonify({'error': 'Failed to get bot list'}), 500
+        print(f"Error in /get-bot-list: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500
     
 
-@bot_routes.route('/get-bot-move', methods=['POST', 'OPTIONS'])
+@bot_routes.route('/get-bot-move', methods=['POST'])
 def get_bot_move():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
+    # print(Fore.BLUE + Style.BRIGHT + "TRYING GET_BOT_MOVE FROM THE BACKEND" + Style.RESET_ALL)
     try:
         # Get the JSON data from the request
         data = request.json
@@ -110,11 +101,8 @@ def get_bot_move():
         # Return an internal server error response
         return jsonify({'error': 'Internal Server Error'}), 500
 
-@bot_routes.route('/agents-reset', methods=['POST', 'OPTIONS'])
+@bot_routes.route('/agents-reset', methods=['POST'])
 def agents_reset():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
     try:
         # Identify the agent to reset
         id = request.json.get('id')
@@ -135,22 +123,15 @@ def agents_reset():
         return jsonify({'error': 'Internal Server Error, el agente no se reseteo (routes.py, agents_reset)'}), 500
 
 # Initialize Agent Load
-@bot_routes.route('/agent-load', methods=['POST', 'OPTIONS'])
+@bot_routes.route('/agent-load', methods=['POST'])  # Fixed missing = sign in methods
 def agent_load():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
     try:
         # Identify the agent to load
-        data = request.get_json()
-        bot_id = data.get('id')
-        bot = AGENTS.get(bot_id)
+        id = request.json.get('id')
+        bot = AGENTS.get(id)
         
-        if bot is None:
-            return jsonify({'error': 'Bot not found'}), 404
-        
-        # Load/Reset the agents
-        bot.reset()  # Using reset since load method might not exist
+        # Load the agents
+        bot.load()
 
         # Print the agent name for debugging
         print(Fore.GREEN + Style.BRIGHT + f"\n{bot.name} loaded successfully\n" + Style.RESET_ALL)
@@ -159,4 +140,8 @@ def agent_load():
         return jsonify({'message': bot.name + ' loaded successfully'})
     except Exception as e:
         print(Fore.RED + Style.BRIGHT + f"\nCATASTROPHIC FAILURE: {e}\n" + Style.RESET_ALL)
-        return jsonify({'error': 'Failed to load bot'}), 500
+        print(Fore.RED + Style.BRIGHT + "THE SYSTEM HAS ENCOUNTERED AN UNFATHOMABLE ERROR. ALL HOPE IS LOST. ABANDON SHIP!\n" + Style.RESET_ALL)
+        print(Fore.RED + Style.BRIGHT + "IF YOU SEE THIS MESSAGE, KNOW THAT THE VERY FABRIC OF REALITY IS TEARING APART. RUN WHILE YOU STILL CAN!\n" + Style.RESET_ALL)
+
+        # Return an internal server error response
+        return jsonify({'error': 'A catastrophic error has occurred. The universe is imploding. Seek shelter immediately!'}), 500

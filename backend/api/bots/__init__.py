@@ -8,6 +8,7 @@ from agents.bots.jardishow import JardiShowAgent
 # from agents.bots.santa import SantaAgent
 # from agents.foofinder import FooFinderAgent
 
+# Create the bots blueprint
 bot_routes = Blueprint('bots', __name__)
 
 # IDs Dictionary, Agent:obj ; ID:int
@@ -23,4 +24,5 @@ AGENTS = {
     # SantaAgent().id : SantaAgent()
 }
 
+# Import routes at the end to avoid circular imports
 from . import routes
