@@ -244,3 +244,80 @@ def test_connection():
             "supabase_connection": "FAILED",
             "error": str(e)
         }), 500
+
+@auth_routes.route('/forgot-password', methods=['POST', 'OPTIONS'])
+def forgot_password():
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    try:
+        data = request.json
+        recaptcha_token = data.get("recaptcha")
+        
+        # Validate reCAPTCHA first
+        if not recaptcha_token:
+            logger.warning("No reCAPTCHA token provided for forgot password")
+            return jsonify({"message": "reCAPTCHA token required"}), 400
+            
+        is_valid, error_message = validate_recaptcha(recaptcha_token, request.remote_addr)
+        if not is_valid:
+            logger.warning(f"reCAPTCHA validation failed for forgot password: {error_message}")
+            return jsonify({"message": "Invalid reCAPTCHA"}), 400
+
+        email = data.get("email")
+        if not email:
+            logger.warning("Missing email for password reset")
+            return jsonify({"message": "Email is required"}), 400
+
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            logger.warning(f"Invalid email format provided: {email}")
+            return jsonify({"message": "Invalid email format"}), 400
+
+        # Get the frontend URL for the reset link - handle different environments
+        origin = request.headers.get('Origin')
+        referer = request.headers.get('Referer')
+        
+        # Determine base URL with fallback logic
+        if origin:
+            base_url = origin
+        elif referer:
+            # Extract base URL from referer
+            from urllib.parse import urlparse
+            parsed = urlparse(referer)
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            # Default fallbacks for different environments
+            base_url = 'https://utictactoe.vercel.app'  # Production default
+        
+        logger.info(f"Using base URL for password reset: {base_url}")
+        
+        try:
+            # Send password reset email via Supabase
+            result = supabase.auth.reset_password_for_email(
+                email,
+                options={
+                    "redirect_to": f"{base_url}/reset-password"
+                }
+            )
+            
+            # Check if there was an error in the result
+            if hasattr(result, 'error') and result.error:
+                logger.error(f"Supabase password reset error: {result.error}")
+                # Don't reveal if email exists or not for security
+                return jsonify({"message": "If an account with that email exists, a password reset link has been sent"}), 200
+            
+        except Exception as supabase_error:
+            logger.error(f"Supabase password reset exception: {str(supabase_error)}")
+            # Don't reveal if email exists or not for security
+            return jsonify({"message": "If an account with that email exists, a password reset link has been sent"}), 200
+
+        logger.info(f"Password reset email request processed for: {email}")
+        # Always return success message for security (don't reveal if email exists)
+        return jsonify({"message": "If an account with that email exists, a password reset link has been sent"}), 200
+        
+    except Exception as e:
+        logger.error(f"Password reset error: {str(e)}", exc_info=True)
+        return jsonify({"message": "Unable to process password reset request. Please try again later."}), 500
