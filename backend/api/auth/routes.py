@@ -321,3 +321,73 @@ def forgot_password():
     except Exception as e:
         logger.error(f"Password reset error: {str(e)}", exc_info=True)
         return jsonify({"message": "Unable to process password reset request. Please try again later."}), 500
+
+@auth_routes.route('/supabase-exchange', methods=['POST', 'OPTIONS'])
+def supabase_exchange():
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    try:
+        data = request.json
+        supabase_token = data.get("supabase_token")
+        user_data = data.get("user_data")
+        
+        if not supabase_token or not user_data:
+            logger.warning("Missing supabase token or user data for exchange")
+            return jsonify({"message": "Missing required data"}), 400
+
+        # Verify the Supabase token by getting user info
+        try:
+            import jwt
+            # Decode without verification first to get the user ID
+            decoded = jwt.decode(supabase_token, options={"verify_signature": False})
+            user_id = decoded.get('sub')
+            
+            if not user_id or user_id != user_data.get('id'):
+                logger.warning("Token user ID doesn't match provided user data")
+                return jsonify({"message": "Invalid token"}), 401
+                
+        except Exception as e:
+            logger.error(f"Token validation error: {str(e)}")
+            return jsonify({"message": "Invalid token format"}), 401
+
+        # Create or update profile in our database
+        try:
+            profile_result = supabase.table("profiles").upsert({
+                "id": user_data.get('id'),
+                "email": user_data.get('email'),
+                "username": user_data.get('username'),
+                "name": user_data.get('name'),
+                "avatar_url": user_data.get('avatar_url'),
+                "provider": user_data.get('provider', 'google')
+            }).execute()
+        except Exception as e:
+            logger.error(f"Profile upsert error: {str(e)}")
+            # Continue anyway, we can still create a backend token
+
+        # Create our own JWT token
+        access_token = create_access_token(
+            identity=user_data.get('id'),
+            additional_claims={
+                "email": user_data.get('email'),
+                "username": user_data.get('username'),
+                "name": user_data.get('name'),
+                "avatar_url": user_data.get('avatar_url')
+            }
+        )
+
+        logger.info(f"Supabase token exchange successful for user: {user_data.get('username')}")
+        return jsonify({
+            "access_token": access_token,
+            "user": {
+                "id": user_data.get('id'),
+                "email": user_data.get('email'),
+                "username": user_data.get('username'),
+                "name": user_data.get('name'),
+                "avatar_url": user_data.get('avatar_url')
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Supabase exchange error: {str(e)}", exc_info=True)
+        return jsonify({"message": f"Token exchange failed: {str(e)}"}), 500
