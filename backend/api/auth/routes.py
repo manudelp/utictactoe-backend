@@ -54,7 +54,6 @@ def register():
             result = supabase.auth.sign_up({
                 "email": email,
                 "password": password,
-                "options": { "data": { "username": username } }
             })
         except Exception as e:
             logger.error(f"Supabase registration error: {str(e)}", exc_info=True)
@@ -75,8 +74,7 @@ def register():
             profile_result = supabase.table("profiles").insert({
                 "id": user.id,
                 "email": email,
-                "username": username,
-                "name": username
+                "username": username
             }).execute()
         except Exception as e:
             logger.error(f"Profile creation error: {str(e)}", exc_info=True)
