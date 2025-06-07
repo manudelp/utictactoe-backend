@@ -55,11 +55,12 @@ def register():
             "options": { "data": { "username": username } }
         })
         
-        # Fix: Access attributes directly instead of using .get()
         if hasattr(result, 'error') and result.error:
+            logger.error(f"Supabase registration error: {result.error.message}")
             return jsonify({"message": result.error.message}), 400
 
         if not hasattr(result, 'data') or not result.data or not result.data.user:
+            logger.error("Supabase registration failed: No user data returned")
             return jsonify({"message": "Registration failed"}), 400
 
         user = result.data.user
@@ -72,14 +73,15 @@ def register():
             "name": username
         }).execute()
 
-        if profile_result.data:
-            return jsonify({"message": "User registered successfully!"}), 201
-        else:
-            return jsonify({"message": "Profile creation failed"}), 400
+        if profile_result.error:
+            logger.error(f"Profile creation error: {profile_result.error.message}")
+            return jsonify({"message": profile_result.error.message}), 400
+
+        return jsonify({"message": "User registered successfully!"}), 201
             
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
-        return jsonify({"message": "Registration failed"}), 500
+        logger.error(f"Registration error: {str(e)}", exc_info=True)
+        return jsonify({"message": "Registration failed due to an internal error."}), 500
 
 @auth_routes.route('/login', methods=['POST', 'OPTIONS'])
 def login():
