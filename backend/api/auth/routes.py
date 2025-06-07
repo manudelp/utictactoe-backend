@@ -351,41 +351,64 @@ def supabase_exchange():
             logger.error(f"Token validation error: {str(e)}")
             return jsonify({"message": "Invalid token format"}), 401
 
-        # Create or update profile in our database
+        # Get the most up-to-date profile data from database
         try:
-            profile_result = supabase.table("profiles").upsert({
+            profile_result = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+            
+            if profile_result.data and not profile_result.data.get('linked_to'):
+                # Use database profile data as the source of truth
+                db_profile = profile_result.data
+                token_user_data = {
+                    "id": user_id,
+                    "email": db_profile.get('email', user_data.get('email')),
+                    "username": db_profile.get('username', user_data.get('username')),
+                    "name": db_profile.get('name', user_data.get('name')),
+                    "avatar_url": db_profile.get('avatar_url', user_data.get('avatar_url')),
+                    "provider": db_profile.get('provider', user_data.get('provider', 'email'))
+                }
+                logger.info(f"Using existing profile data for user: {token_user_data.get('username')}")
+            else:
+                # Create or update profile with provided data
+                token_user_data = {
+                    "id": user_data.get('id'),
+                    "email": user_data.get('email'),
+                    "username": user_data.get('username'),
+                    "name": user_data.get('name'),
+                    "avatar_url": user_data.get('avatar_url'),
+                    "provider": user_data.get('provider', 'email')
+                }
+                
+                # Upsert the profile
+                supabase.table("profiles").upsert(token_user_data).execute()
+                logger.info(f"Created/updated profile for user: {token_user_data.get('username')}")
+                
+        except Exception as e:
+            logger.error(f"Profile management error: {str(e)}")
+            # Fall back to provided user data
+            token_user_data = {
                 "id": user_data.get('id'),
                 "email": user_data.get('email'),
                 "username": user_data.get('username'),
                 "name": user_data.get('name'),
                 "avatar_url": user_data.get('avatar_url'),
-                "provider": user_data.get('provider', 'google')
-            }).execute()
-        except Exception as e:
-            logger.error(f"Profile upsert error: {str(e)}")
-            # Continue anyway, we can still create a backend token
+                "provider": user_data.get('provider', 'email')
+            }
 
-        # Create our own JWT token
+        # Create our own JWT token with the finalized user data
         access_token = create_access_token(
-            identity=user_data.get('id'),
+            identity=token_user_data.get('id'),
             additional_claims={
-                "email": user_data.get('email'),
-                "username": user_data.get('username'),
-                "name": user_data.get('name'),
-                "avatar_url": user_data.get('avatar_url')
+                "email": token_user_data.get('email'),
+                "username": token_user_data.get('username'),
+                "name": token_user_data.get('name'),
+                "avatar_url": token_user_data.get('avatar_url')
             }
         )
 
-        logger.info(f"Supabase token exchange successful for user: {user_data.get('username')}")
+        logger.info(f"Supabase token exchange successful for user: {token_user_data.get('username')}")
         return jsonify({
             "access_token": access_token,
-            "user": {
-                "id": user_data.get('id'),
-                "email": user_data.get('email'),
-                "username": user_data.get('username'),
-                "name": user_data.get('name'),
-                "avatar_url": user_data.get('avatar_url')
-            }
+            "user": token_user_data
         }), 200
         
     except Exception as e:
