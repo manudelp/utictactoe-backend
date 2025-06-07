@@ -50,12 +50,9 @@ def register():
             return jsonify({"message": "Missing required fields."}), 400
 
         # Register with Supabase
-        base_url = request.headers.get('Origin', 'https://utictactoe.vercel.app')
         result = supabase.auth.sign_up({
             "email": email,
             "password": password,
-        }, options={
-            "email_redirect_to": f"{base_url}/confirm"
         })
         
         user = None
