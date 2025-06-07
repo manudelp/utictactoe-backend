@@ -33,12 +33,12 @@ def register():
         
         # Validate reCAPTCHA first
         if not recaptcha_token:
-            logger.warning("No reCAPTCHA token provided for registration")
+            logger.warning("No reCAPTCHA token provided for login")
             return jsonify({"message": "reCAPTCHA token required"}), 400
             
         is_valid, error_message = validate_recaptcha(recaptcha_token, request.remote_addr)
         if not is_valid:
-            logger.warning(f"reCAPTCHA validation failed for registration: {error_message}")
+            logger.warning(f"reCAPTCHA validation failed for register: {error_message}")
             return jsonify({"message": "Invalid reCAPTCHA"}), 400
 
         email = data.get("email")
@@ -50,24 +50,25 @@ def register():
             return jsonify({"message": "Missing required fields."}), 400
 
         # Register with Supabase
-        try:
-            result = supabase.auth.sign_up({
-                "email": email,
-                "password": password,
-            })
-        except Exception as e:
-            logger.error(f"Supabase registration error: {str(e)}", exc_info=True)
-            return jsonify({"message": "Failed to register user with Supabase."}), 500
+        result = supabase.auth.sign_up({
+            "email": email,
+            "password": password,
+        })
         
-        if hasattr(result, 'error') and result.error:
-            logger.error(f"Supabase registration error: {result.error.message}")
-            return jsonify({"message": result.error.message}), 400
+        user = None
+        
+        if hasattr(result, 'data'):
+            if isinstance(result.data, dict):
+                user = result.data.get('user')
+            elif hasattr(result.data, 'user'):
+                user = result.data.user
 
-        if not hasattr(result, 'data') or not result.data or not result.data.user:
-            logger.error("Supabase registration failed: No user data returned")
+        if not user and hasattr(result, 'user'):
+            user = result.user
+
+        if not user:
+            logger.error(f"Supabase registration failed: No user data returned. Raw result: {vars(result) if hasattr(result, '__dict__') else str(result)}")
             return jsonify({"message": "Registration failed"}), 400
-
-        user = result.data.user
 
         # Create profile in Supabase
         try:
@@ -80,9 +81,9 @@ def register():
             logger.error(f"Profile creation error: {str(e)}", exc_info=True)
             return jsonify({"message": "Failed to create user profile."}), 500
 
-        if profile_result.error:
-            logger.error(f"Profile creation error: {profile_result.error.message}")
-            return jsonify({"message": profile_result.error.message}), 400
+        if not profile_result.data:
+            logger.error(f"Profile creation failed or returned empty data: {profile_result}")
+            return jsonify({"message": "Profile creation failed"}), 400
 
         return jsonify({"message": "User registered successfully!"}), 201
             
@@ -96,9 +97,7 @@ def login():
         return '', 204
 
     try:
-        data = request.json
-        logger.info(f"Login attempt for email: {data.get('email', 'N/A')}")
-        
+        data = request.json       
         recaptcha_token = data.get("recaptcha")
         
         # Validate reCAPTCHA first
@@ -118,15 +117,10 @@ def login():
             return jsonify({"message": "Missing email or password"}), 400
 
         # Authenticate with Supabase
-        logger.info(f"Attempting Supabase authentication for: {email}")
         result = supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
-        
-        # Debug: Log the full result structure
-        logger.info(f"Supabase result type: {type(result)}")
-        logger.info(f"Supabase result attributes: {dir(result)}")
         
         # Fix: Check for errors properly
         if hasattr(result, 'error') and result.error:
