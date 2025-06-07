@@ -46,14 +46,19 @@ def register():
         username = data.get("username")
 
         if not all([email, password, username]):
+            logger.warning("Missing required fields during registration")
             return jsonify({"message": "Missing required fields."}), 400
 
         # Register with Supabase
-        result = supabase.auth.sign_up({
-            "email": email,
-            "password": password,
-            "options": { "data": { "username": username } }
-        })
+        try:
+            result = supabase.auth.sign_up({
+                "email": email,
+                "password": password,
+                "options": { "data": { "username": username } }
+            })
+        except Exception as e:
+            logger.error(f"Supabase registration error: {str(e)}", exc_info=True)
+            return jsonify({"message": "Failed to register user with Supabase."}), 500
         
         if hasattr(result, 'error') and result.error:
             logger.error(f"Supabase registration error: {result.error.message}")
@@ -66,12 +71,16 @@ def register():
         user = result.data.user
 
         # Create profile in Supabase
-        profile_result = supabase.table("profiles").insert({
-            "id": user.id,
-            "email": email,
-            "username": username,
-            "name": username
-        }).execute()
+        try:
+            profile_result = supabase.table("profiles").insert({
+                "id": user.id,
+                "email": email,
+                "username": username,
+                "name": username
+            }).execute()
+        except Exception as e:
+            logger.error(f"Profile creation error: {str(e)}", exc_info=True)
+            return jsonify({"message": "Failed to create user profile."}), 500
 
         if profile_result.error:
             logger.error(f"Profile creation error: {profile_result.error.message}")
@@ -80,7 +89,7 @@ def register():
         return jsonify({"message": "User registered successfully!"}), 201
             
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected registration error: {str(e)}", exc_info=True)
         return jsonify({"message": "Registration failed due to an internal error."}), 500
 
 @auth_routes.route('/login', methods=['POST', 'OPTIONS'])
