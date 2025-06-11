@@ -101,39 +101,26 @@ def login():
         if not all([email, password]):
             return jsonify({"message": "Missing email or password"}), 400
 
-        # Authenticate with Supabase
+        # Check provider before attempting password login
+        user_check = supabase.auth.admin.get_user_by_email(email)
+        user = getattr(user_check, "user", None) or getattr(user_check.data, "user", None)
+
+        if user and getattr(user, "app_metadata", {}).get("provider") == "google":
+            return jsonify({
+                "message": "This email is registered with Google. Please log in using Google authentication."
+            }), 403
+
+        # Supabase Auth login
         result = supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
-        
-        # Check for errors properly
+
+        # Check if the result has an error
         if hasattr(result, 'error') and result.error:
-            # Check if user exists with Google provider
-            try:
-                user_check = supabase.auth.admin.get_user_by_email(email)
-
-                user = None
-                if hasattr(user_check, 'user') and user_check.user:
-                    user = user_check.user
-                elif hasattr(user_check, 'data') and hasattr(user_check.data, 'user'):
-                    user = user_check.data.user
-
-                provider = None
-                if user and hasattr(user, 'app_metadata'):
-                    provider = user.app_metadata.get("provider")
-
-
-                if provider == "google":
-                    return jsonify({
-                        "message": "This email is registered with Google. Please log in using Google authentication.",
-                    }), 403
-
-            except Exception:
-                pass  # fallback if lookup fails
-
-            return jsonify({"message": str(result.error)}), 401
-
+            return jsonify({"message": "Login failed: " + result.error.message}), 401
+        if not hasattr(result, 'data') or not result.data:
+            return jsonify({"message": "Login failed - no user data"}), 401
 
         # Access user data more defensively
         user = None
