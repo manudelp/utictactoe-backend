@@ -109,7 +109,20 @@ def login():
         
         # Check for errors properly
         if hasattr(result, 'error') and result.error:
+            # Check if user exists with Google provider
+            try:
+                user_check = supabase.auth.admin.get_user_by_email(email)
+                provider = user_check.get("user", {}).get("app_metadata", {}).get("provider")
+
+                if provider == "google":
+                    return jsonify({
+                        "message": "This email is registered with Google. Please log in using Google authentication.",
+                    }), 403
+            except Exception:
+                pass  # fallback if lookup fails
+
             return jsonify({"message": str(result.error)}), 401
+
 
         # Access user data more defensively
         user = None
