@@ -213,6 +213,21 @@ def verify_token():
         }
     }), 200
 
+# --- Get User Identities ---
+@auth_routes.route('/user-identities/<user_id>', methods=['GET'])
+def get_user_identities(user_id):
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+
+    result = supabase.auth.admin.get_user_by_id(user_id)
+    user = getattr(result, "user", None)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    identities = getattr(user, "identities", [])
+    return jsonify({"identities": identities}), 200
+
 # --- reCAPTCHA Verification ---
 @auth_routes.route('/verify-recaptcha', methods=['POST', 'OPTIONS'])
 def verify_recaptcha():
