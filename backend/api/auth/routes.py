@@ -216,8 +216,11 @@ def verify_token():
 # --- Get User Identities ---
 @auth_routes.route('/user-identities/<user_id>', methods=['GET'])
 def get_user_identities(user_id):
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
+    provided_key = request.headers.get("X-Internal-API-Key")
+    expected_key = os.getenv("INTERNAL_API_KEY")
+
+    if provided_key != expected_key:
+        return jsonify({"error": "Unauthorized"}), 403
 
     result = supabase.auth.admin.get_user_by_id(user_id)
     user = getattr(result, "user", None)
