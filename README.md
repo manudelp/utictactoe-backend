@@ -54,13 +54,33 @@ python app.py
 
 ### Production Mode
 
+**⚠️ IMPORTANTE**: Este proyecto ahora usa una infraestructura nginx centralizada. El archivo `docker-compose.yml` solo ejecuta el backend y se conecta a la red externa `app-network` donde el nginx central maneja el proxy y SSL.
+
 ```bash
 cd backend
 gunicorn --worker-class eventlet -w 1 app:app
 ```
 
-Or using Docker:
+O usando Docker:
 
 ```bash
+# Asegúrate de que la red externa exista
+docker network create app-network
+
+# Ejecutar solo el backend
 docker-compose up -d
 ```
+
+Para configurar el nginx central, ve al repositorio `server-nginx` y sigue las instrucciones allí.
+
+## 🏗️ Arquitectura de Deployment
+
+Este proyecto forma parte de una infraestructura nginx centralizada:
+
+- **Backend UTicTacToe**: Corre en puerto interno 5000, contenedor `utictactoe-backend`
+- **Nginx Central**: Repositorio `server-nginx` maneja proxy, SSL y dominios
+- **Red Compartida**: `app-network` conecta todos los servicios
+- **Dominio**: `api.utictactoe.online` (manejado por nginx central)
+- **WebSockets**: Soporte completo para Socket.IO a través del proxy nginx
+
+Para cambios en la configuración de proxy, SSL o WebSockets, edita los archivos en el repositorio `server-nginx`.

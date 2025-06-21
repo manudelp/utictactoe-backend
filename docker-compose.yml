@@ -1,6 +1,9 @@
+version: '3.8'
+
 services:
   backend:
     image: ${DOCKERHUB_USERNAME:-username}/utictactoe-backend:latest
+    container_name: utictactoe-backend
     restart: always
     expose:
       - "5000"
@@ -10,21 +13,8 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
     networks:
-      - utictactoe
-
-  nginx:
-    image: ${DOCKERHUB_USERNAME:-username}/utictactoe-nginx:latest
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
-    networks:
-      - utictactoe
-    restart: always
+      - app-network
 
 networks:
-  utictactoe:
-    driver: bridge
+  app-network:
+    external: true
