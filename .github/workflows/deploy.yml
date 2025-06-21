@@ -3,11 +3,10 @@ name: Deploy UTicTacToe Backend
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
   build-and-deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -50,7 +49,7 @@ jobs:
       - name: Deploy backend service
         run: |
           echo "🚀 Deploying UTicTacToe backend..."
-          
+
           # Try to pull latest image first (fallback to local build)
           echo "Attempting to pull latest image..."
           if docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-backend:latest 2>/dev/null; then
@@ -58,15 +57,15 @@ jobs:
           else
             echo "⚠️ Could not pull from DockerHub, will build locally"
           fi
-          
+
           # Stop existing container
           echo "Stopping existing services..."
           docker-compose down || true
-          
+
           # Start with latest image (or build if needed)
           echo "Starting services..."
           docker-compose up -d --build
-          
+
           # Wait for backend to be ready
           echo "Waiting for backend to initialize..."
           sleep 15
@@ -74,7 +73,7 @@ jobs:
       - name: Verify deployment
         run: |
           echo "🔍 Verifying deployment..."
-          
+
           # Check if container is running
           if ! docker ps | grep -q "utictactoe-backend"; then
             echo "❌ Backend container is not running"
@@ -82,9 +81,9 @@ jobs:
             docker-compose logs backend
             exit 1
           fi
-          
+
           echo "✅ Backend container is running"
-          
+
           # Test health endpoint (if available)
           echo "Testing backend connectivity..."
           if docker exec utictactoe-backend curl -f http://localhost:5000/health > /dev/null 2>&1; then
@@ -95,11 +94,11 @@ jobs:
             echo "⚠️ Backend health check failed or endpoint not available"
             echo "Backend might still be starting up or health endpoint might not exist"
           fi
-          
+
           # Show final status
           echo "📊 Deployment Summary:"
           docker ps | grep utictactoe-backend || echo "Container not found in ps output"
-          
+
           echo "✅ UTicTacToe backend deployment completed"
 
       - name: Clean up old images
