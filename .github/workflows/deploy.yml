@@ -1,22 +1,23 @@
-name: Deploy Backend to Server
+name: Deploy UTicTacToe Backend
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: self-hosted
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -28,57 +29,50 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-backend:latest
 
-      - name: Build and push nginx Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: ./
-          file: ./nginx/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-nginx:latest
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
-
-      - name: Recreate SSL files and send to server
+      - name: Create .env file
         run: |
-          echo "${{ secrets.SSL_FULLCHAIN_PEM }}" | base64 -d > fullchain.pem
-          echo "${{ secrets.SSL_PRIVKEY_PEM }}" | base64 -d > privkey.pem
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/utictactoe/ssl"
-          scp -P ${{ secrets.SSH_PORT }} fullchain.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/ssl/
-          scp -P ${{ secrets.SSH_PORT }} privkey.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/ssl/
+          echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" > .env
+          echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
+          echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
 
-      - name: Create .env file on server
+      - name: Ensure app-network exists
         run: |
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/utictactoe"
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
-            echo "RECAPTCHA_SECRET_KEY=${{ secrets.RECAPTCHA_SECRET_KEY }}" > ~/utictactoe/.env
-            echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> ~/utictactoe/.env
-            echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> ~/utictactoe/.env
-            echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> ~/utictactoe/.env
-            echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> ~/utictactoe/.env
-          EOF
+          docker network create app-network 2>/dev/null || true
 
-      - name: Copy docker-compose.yml to server
+      - name: Deploy backend service
         run: |
-          scp -P ${{ secrets.SSH_PORT }} docker-compose.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/utictactoe/
+          # Pull latest image
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-backend:latest
+          
+          # Stop existing container
+          docker-compose down || true
+          
+          # Start with latest image
+          docker-compose up -d
+          
+          # Wait for backend to be ready
+          sleep 10
 
-      - name: Deploy to Server
+      - name: Verify deployment
         run: |
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-backend:latest
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/utictactoe-nginx:latest
-            docker compose --env-file ~/utictactoe/.env -f ~/utictactoe/docker-compose.yml down || true
-            docker compose --env-file ~/utictactoe/.env -f ~/utictactoe/docker-compose.yml up -d
-          EOF
+          # Check if container is running
+          if ! docker ps | grep -q "utictactoe-backend"; then
+            echo "❌ Backend container is not running"
+            docker-compose logs
+            exit 1
+          fi
+          
+          # Test health endpoint (if available)
+          if docker exec utictactoe-backend curl -f http://localhost:5000/health > /dev/null 2>&1; then
+            echo "✅ Backend health check passed"
+          else
+            echo "⚠️ Backend health check failed or endpoint not available"
+          fi
+          
+          echo "✅ UTicTacToe backend deployed successfully"
+
+      - name: Clean up old images
+        run: |
+          docker image prune -af --filter "until=24h" || true
