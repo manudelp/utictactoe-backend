@@ -107,15 +107,3 @@ jobs:
           echo "🧹 Cleaning up old Docker images..."
           docker image prune -af --filter "until=24h" || true
           echo "✅ Cleanup completed"
-
-      - name: Display deployment info
-        run: |
-          echo "🎉 Deployment Summary:"
-          echo "Repository: UTicTacToe-backend"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Deployed at: $(date)"
-          echo ""
-          echo "🔗 Backend should be accessible via:"
-          echo "- Internal network: http://utictactoe-backend:5000"
-          echo "- Through nginx proxy: https://api.utictactoe.online"
